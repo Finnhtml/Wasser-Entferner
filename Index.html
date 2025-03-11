@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wasser aus Lautsprechern entfernen</title>
+    <style>
+        body {
+            font-family: 'Arial', sans-serif;
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(to bottom, #1e3c72, #2a5298);
+            color: white;
+            transition: background 0.3s, color 0.3s;
+        }
+        .container {
+            max-width: 400px;
+            margin: auto;
+            background: rgba(255, 255, 255, 0.15);
+            padding: 20px;
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+            box-shadow: 0px 4px 10px rgba(0, 0, 0, 0.3);
+        }
+        h2 {
+            margin-bottom: 10px;
+        }
+        .start-button {
+            width: 140px;
+            height: 140px;
+            border-radius: 50%;
+            border: none;
+            background: #007bff;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            margin: 20px auto;
+            display: block;
+            font-weight: bold;
+            box-shadow: 0px 4px 15px rgba(0, 123, 255, 0.6);
+            transition: background 0.2s, transform 0.1s, box-shadow 0.2s;
+        }
+        .start-button:active {
+            background: #0056b3;
+            transform: scale(0.95);
+            box-shadow: 0px 2px 10px rgba(0, 123, 255, 0.4);
+        }
+        .warning {
+            font-size: 14px;
+            color: #ffcc00;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 10px;
+            border-radius: 8px;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+        .info {
+            font-size: 16px;
+            margin-top: 10px;
+            font-weight: bold;
+            color: white;
+        }
+        .dark-toggle {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            cursor: pointer;
+            padding: 10px;
+            font-size: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 50%;
+            border: none;
+            color: white;
+            transition: background 0.3s;
+        }
+        .dark-toggle:hover {
+            background: rgba(0, 0, 0, 0.5);
+        }
+        .dark-mode {
+            background: linear-gradient(to bottom, #121212, #323232);
+            color: white;
+        }
+        .dark-mode .container {
+            background: rgba(255, 255, 255, 0.1);
+        }
+        .dark-mode .start-button {
+            background: #0056b3;
+            box-shadow: 0px 4px 15px rgba(0, 123, 255, 0.8);
+        }
+        .dark-mode .start-button:active {
+            background: #003d80;
+            box-shadow: 0px 2px 10px rgba(0, 123, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Wasser aus Lautsprechern entfernen</h2>
+        <p class="info">📢 Stelle die Lautstärke deines Handys auf **70–80%** und lege es mit dem Lautsprecher nach unten auf den Bildschirm.</p>
+        
+        <button id="startStopBtn" class="start-button">Start</button>
+
+        <p id="timerInfo" class="info" style="display: none;"></p>
+
+        <p class="warning">⚠ Wir übernehmen keine Haftung für Schäden oder Fehlfunktionen!</p>
+    </div>
+
+    <button class="dark-toggle" onclick="toggleDarkMode()">🌙</button>
+
+    <script>
+        let audioCtx = null;
+        let fixedOscillator = null;
+        let sweepOscillator = null;
+        let gainNode = null;
+        let isPlaying = false;
+        let sweepInterval = null;
+        let timer = null;
+        let countdown = null;
+
+        function startSound() {
+            if (isPlaying) return;
+            
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            gainNode = audioCtx.createGain();
+            gainNode.gain.value = 1; 
+
+            // 165 Hz Oszillator
+            fixedOscillator = audioCtx.createOscillator();
+            fixedOscillator.type = "square";
+            fixedOscillator.frequency.setValueAtTime(165, audioCtx.currentTime);
+            fixedOscillator.connect(gainNode).connect(audioCtx.destination);
+            fixedOscillator.start();
+
+            // Sweep Oszillator
+            sweepOscillator = audioCtx.createOscillator();
+            sweepOscillator.type = "square";
+            sweepOscillator.frequency.setValueAtTime(100, audioCtx.currentTime);
+            sweepOscillator.connect(gainNode).connect(audioCtx.destination);
+            sweepOscillator.start();
+
+            let startFreq = 100;
+            let endFreq = 5000;
+            let step = 100;
+            let currentFreq = startFreq;
+
+            sweepInterval = setInterval(() => {
+                currentFreq += step;
+                if (currentFreq > endFreq) currentFreq = startFreq;
+                sweepOscillator.frequency.setValueAtTime(currentFreq, audioCtx.currentTime);
+            }, 100);
+
+            isPlaying = true;
+            document.getElementById("startStopBtn").textContent = "Stoppt in 60s";
+            document.getElementById("timerInfo").style.display = "block";
+
+            let secondsLeft = 60;
+            countdown = setInterval(() => {
+                secondsLeft--;
+                document.getElementById("startStopBtn").textContent = `Stoppt in ${secondsLeft}s`;
+                if (secondsLeft <= 0) {
+                    stopSound();
+                }
+            }, 1000);
+
+            timer = setTimeout(() => {
+                stopSound();
+            }, 60000);
+        }
+
+        function stopSound() {
+            if (!isPlaying) return;
+
+            fixedOscillator.stop();
+            sweepOscillator.stop();
+            clearInterval(sweepInterval);
+            clearTimeout(timer);
+            clearInterval(countdown);
+            audioCtx.close().then(() => {
+                audioCtx = null;
+                isPlaying = false;
+                document.getElementById("startStopBtn").textContent = "Start";
+                document.getElementById("timerInfo").style.display = "none";
+            });
+        }
+
+        document.getElementById("startStopBtn").addEventListener("click", () => {
+            isPlaying ? stopSound() : startSound();
+        });
+
+        function toggleDarkMode() {
+            document.body.classList.toggle("dark-mode");
+            localStorage.setItem("darkMode", document.body.classList.contains("dark-mode") ? "on" : "off");
+        }
+
+        // Dark Mode Zustand beim Laden wiederherstellen
+        if (localStorage.getItem("darkMode") === "on") {
+            document.body.classList.add("dark-mode");
+        }
+    </script>
+
+</body>
+</html>
